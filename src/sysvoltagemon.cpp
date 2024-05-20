@@ -7,7 +7,7 @@
 #define CORRECTION_FACTOR_5V 0.789 // Correction factor based on observed discrepancy for 5V rail
 #define CORRECTION_FACTOR_3V3 1.0067 // Correction factor based on observed discrepancy for 3.3V rail
 
-#define Rail3V3Pin 6      // ADC pin for 3.3V rail
+#define Rail3V3Pin 6       // ADC pin for 3.3V rail
 #define Rail5VPin 5       // ADC pin for 5V rail (through voltage divider)
 
 void initSysVoltageMon() {

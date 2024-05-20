@@ -10,12 +10,6 @@ int analogBufferIndex = 0, copyIndex = 0;
 float averageVoltage = 0, tdsValue = 0, temperature = 25;
 float calibrationFactor = 1.23; // Replace this with your actual calibration factor
 
-void initTDS() {
-    Serial.begin(115200);
-    Serial.println("TDS monitoring setup complete.");
-    pinMode(TdsSensorPin, INPUT);
-}
-
 int getMedianNum(int bArray[], int iFilterLen) {
     int bTab[iFilterLen];
     for (byte i = 0; i < iFilterLen; i++)
@@ -35,6 +29,12 @@ int getMedianNum(int bArray[], int iFilterLen) {
     else
         bTemp = (bTab[iFilterLen / 2] + bTab[iFilterLen / 2 - 1]) / 2;
     return bTemp;
+}
+
+void initTDS() {
+    Serial.begin(115200);
+    Serial.println("TDS monitoring setup complete.");
+    pinMode(TdsSensorPin, INPUT);
 }
 
 float getTDSValue() {
@@ -62,4 +62,3 @@ float getTDSValue() {
     }
     return tdsValue;
 }
-

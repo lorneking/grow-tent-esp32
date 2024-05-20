@@ -8,7 +8,6 @@
 #define PH_DO 15 // This is the pin number connected to Do
 // "Po" is the raw output value for the pH
 #define PH_PO 7 // This is the pin number connected to Po
-#define VREF 4.95
 
 void initph() {
     Serial.begin(115200);

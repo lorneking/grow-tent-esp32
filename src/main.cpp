@@ -2,12 +2,15 @@
 #include "sysvoltagemon.h"
 #include "tds.h"
 #include "ph.h"
+#include "thermistor.h"
 
 void setup() {
     // Initialize all systems
+    Serial.begin(115200);
     initSysVoltageMon();
     initTDS();
     initph();
+    initThermistor();
 }
 
 void loop() {
@@ -16,6 +19,7 @@ void loop() {
     float voltage5V = getVoltage5V();
     float tdsValue = getTDSValue(voltage5V);
     float phValue = getPHValue(voltage5V);
+    float temperature = getTemperature(voltage5V); // Use the 5V reference for the thermistor
 
     // Print the readings in a tidy format
     Serial.print("3.3V Rail: ");
@@ -33,6 +37,10 @@ void loop() {
     Serial.print("pH Value: ");
     Serial.print(phValue, 3);
     Serial.println("");
+
+    Serial.print("Temperature: ");
+    Serial.print(temperature, 2);
+    Serial.println(" °C");
 
     delay(2000); // Update every 2 seconds
 }

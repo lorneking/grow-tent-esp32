@@ -18,9 +18,9 @@ void initph() {
     pinMode(PH_PO, INPUT);
 }
 
-float getPHValue() {
+float getPHValue(float voltage5V) {
     int measure = analogRead(PH_PO);
-    double voltage = (3.3 / 4095.0) * measure; // ESP32 uses a 12-bit ADC and a 3.3V reference voltage
+    double voltage = (voltage5V / 4095.0) * measure; // Use passed voltage5V instead of a constant
     float Po = 7 + ((2.5 - voltage) / 0.18);
     return Po;
 }

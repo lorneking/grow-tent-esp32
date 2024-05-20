@@ -2,7 +2,6 @@
 #define TDS_H
 
 void initTDS();
-float getTDSValue();
-int getMedianNum(int bArray[], int iFilterLen);
+float getTDSValue(float voltage5V);
 
 #endif // TDS_H

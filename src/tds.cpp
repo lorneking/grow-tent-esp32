@@ -2,7 +2,6 @@
 #include "tds.h"
 
 #define TdsSensorPin 5  // GPIO pin for the TDS sensor, using ADC1_CH4 on ESP32-S3
-#define VREF 3.3           // Analog reference voltage (Volt) of the ADC for ESP32
 #define SCOUNT 30          // Sum of sample points
 int analogBuffer[SCOUNT];  // Store the analog value in the array, read from ADC
 int analogBufferTemp[SCOUNT];
@@ -37,7 +36,7 @@ void initTDS() {
     pinMode(TdsSensorPin, INPUT);
 }
 
-float getTDSValue() {
+float getTDSValue(float voltage5V) {
     static unsigned long analogSampleTimepoint = millis();
     if (millis() - analogSampleTimepoint > 40U) { // Every 40 milliseconds, read the analog value from the ADC
         analogSampleTimepoint = millis();
@@ -52,7 +51,7 @@ float getTDSValue() {
         printTimepoint = millis();
         for (copyIndex = 0; copyIndex < SCOUNT; copyIndex++)
             analogBufferTemp[copyIndex] = analogBuffer[copyIndex];
-        averageVoltage = getMedianNum(analogBufferTemp, SCOUNT) * (float)VREF / 4096.0; // Read the analog value more stable by the median filtering algorithm, and convert to voltage value
+        averageVoltage = getMedianNum(analogBufferTemp, SCOUNT) * (float)voltage5V / 4096.0; // Use passed voltage5V instead of a constant
         float compensationCoefficient = 1.0 + 0.02 * (temperature - 25.0); // Temperature compensation formula: fFinalResult(25^C) = fFinalResult(current)/(1.0+0.02*(fTP-25.0));
         float compensationVoltage = averageVoltage / compensationCoefficient; // Temperature compensation
         tdsValue = (133.42 * compensationVoltage * compensationVoltage * compensationVoltage - 255.86 * compensationVoltage * compensationVoltage + 857.39 * compensationVoltage) * 0.5; // Convert voltage value to TDS value

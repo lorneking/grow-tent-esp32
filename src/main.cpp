@@ -14,8 +14,8 @@ void loop() {
     // Monitor all systems and get values
     float voltage3V3 = getVoltage3V3();
     float voltage5V = getVoltage5V();
-    float tdsValue = getTDSValue();
-    float phValue = getPHValue();
+    float tdsValue = getTDSValue(voltage5V);
+    float phValue = getPHValue(voltage5V);
 
     // Print the readings in a tidy format
     Serial.print("3.3V Rail: ");

@@ -3,7 +3,7 @@
 
 #define THERMISTOR_PIN 17   // GPIO pin connected to the thermistor
 #define SERIES_RESISTOR 10000.0 // Value of the series resistor (10k ohms)
-#define B_COEFFICIENT 3950 // Beta coefficient of the thermistor
+#define B_COEFFICIENT 7101 // Updated Beta coefficient based on calibration points
 #define NOMINAL_RESISTANCE 10000 // Resistance at 25 degrees Celsius (10k ohms)
 #define NOMINAL_TEMPERATURE 25.0 // Nominal temperature (25 degrees Celsius)
 
@@ -12,35 +12,35 @@ void initThermistor() {
     pinMode(THERMISTOR_PIN, INPUT);
 }
 
+// Function to get the raw ADC value from the thermistor
+int getRawADCValue() {
+    return analogRead(THERMISTOR_PIN);
+}
+
+// Function to calculate the voltage across the thermistor
+float getThermistorVoltage(float vref) {
+    int adcValue = getRawADCValue();
+    return (vref / 4095.0) * adcValue;
+}
+
+// Function to calculate the resistance of the thermistor
+float getThermistorResistance(float vref) {
+    float voltage = getThermistorVoltage(vref);
+    return SERIES_RESISTOR * (vref / voltage - 1.0);
+}
+
 // Function to get the temperature reading from the thermistor
 float getTemperature(float vref) {
-    int adcValue = analogRead(THERMISTOR_PIN);
-    float voltage = (vref / 4095.0) * adcValue;
+    float thermistorResistance = getThermistorResistance(vref);
 
-    // Print ADC value and voltage for debugging
-    Serial.print("ADC Value: ");
-    Serial.println(adcValue);
-    Serial.print("Voltage: ");
-    Serial.println(voltage);
-
-    // Prevent division by zero in case voltage is very low
-    if (voltage == 0) {
-        Serial.println("Voltage is zero, returning error value.");
-        return -273.15;
+    // Prevent division by zero or negative resistance values
+    if (thermistorResistance <= 0) {
+        return -273.15; // Return an error value
     }
 
-    // Calculate the resistance of the thermistor
-    float thermistorResistance = SERIES_RESISTOR * (vref / voltage - 1.0);
-    
-    // Print thermistor resistance for debugging
+    // Debugging prints
     Serial.print("Thermistor Resistance: ");
     Serial.println(thermistorResistance);
-
-    // Ensure resistance is positive and non-zero before taking the log
-    if (thermistorResistance <= 0) {
-        Serial.println("Invalid thermistor resistance, returning error value.");
-        return -273.15;
-    }
 
     // Calculate the temperature using the Steinhart-Hart equation
     float steinhart;
@@ -50,6 +50,10 @@ float getTemperature(float vref) {
     steinhart += 1.0 / (NOMINAL_TEMPERATURE + 273.15);          // + (1/To)
     steinhart = 1.0 / steinhart;                                // Invert
     steinhart -= 273.15;                                        // Convert to Celsius
+
+    // Debugging prints
+    Serial.print("Steinhart: ");
+    Serial.println(steinhart);
 
     return steinhart;
 }

@@ -38,6 +38,18 @@ void loop() {
     Serial.print(phValue, 3);
     Serial.println("");
 
+    // Print the raw ADC value, voltage, and resistance for calibration
+    int adcValue = getRawADCValue();
+    float voltage = getThermistorVoltage(voltage5V);
+    float thermistorResistance = getThermistorResistance(voltage5V);
+
+    Serial.print("Raw ADC Value: ");
+    Serial.println(adcValue);
+    Serial.print("Thermistor Voltage: ");
+    Serial.println(voltage);
+    Serial.print("Thermistor Resistance: ");
+    Serial.println(thermistorResistance);
+
     Serial.print("Temperature: ");
     Serial.print(temperature, 2);
     Serial.println(" °C");

@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WebServer.h>
 #include <FS.h>
 #include <SD_MMC.h>
 #include "time.h"
@@ -22,8 +21,6 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -5 * 3600; // Adjust this to your time zone
 const int daylightOffset_sec = 3600; // Daylight offset, adjust if needed
 
-WebServer server(80); // Create a web server object that listens on port 80
-
 // Create an instance of the WiFiDriver class
 WiFiDriver wifi;
 
@@ -39,12 +36,14 @@ SDCardDriver sdCard;
 // Create a mutex for SD card access
 SemaphoreHandle_t sdCardMutex;
 
+// Flag to control data logging
+bool isLoggingEnabled = true;
+
 // Function declarations
 void handleSerialCommand();
 void printSensorValues();
 void printLocalTime();
-void listFiles();
-void serveFile();
+void downloadFile(String fileName);  // Forward declaration
 
 void setup() {
     // Start the Serial Monitor
@@ -103,31 +102,18 @@ void setup() {
         file.close();
     }
     xSemaphoreGive(sdCardMutex);
-
-    // Start the web server
-    server.on("/", listFiles);
-    server.on("/file", HTTP_GET, serveFile);
-    server.begin();
-    Serial.println("HTTP server started");
 }
 
 void loop() {
-    // Reconnect if Wi-Fi is disconnected
-    if (!wifi.isConnected()) {
-        Serial.println("Disconnected from Wi-Fi, reconnecting...");
-        wifi.begin(ssid, password);
-    }
-
-    // Handle web server client requests
-    server.handleClient();
-
-    // Check for serial commands
+    // Handle serial commands
     if (Serial.available() > 0) {
         handleSerialCommand();
     }
 
-    // Perform regular data logging
-    printSensorValues();
+    // Perform regular data logging if enabled
+    if (isLoggingEnabled) {
+        printSensorValues();
+    }
 
     delay(2000); // Update every 2 seconds
 }
@@ -136,7 +122,10 @@ void handleSerialCommand() {
     String command = Serial.readStringUntil('\n');
     command.trim(); // Remove any trailing whitespace
 
-    if (command == "READ") {
+    if (command.startsWith("DOWNLOAD ")) {
+        String fileName = command.substring(9);
+        downloadFile(fileName);
+    } else if (command == "READ") {
         printSensorValues();
     } else if (command.startsWith("LOG ")) {
         String message = command.substring(4);
@@ -154,15 +143,31 @@ void handleSerialCommand() {
         Serial.println("Sensors reset");
     } else if (command == "STOP_LOGGING") {
         // Example command to stop logging data
-        // Implement your logic to stop logging
+        isLoggingEnabled = false;
         Serial.println("Data logging stopped");
     } else if (command == "START_LOGGING") {
         // Example command to start logging data
-        // Implement your logic to start logging
+        isLoggingEnabled = true;
         Serial.println("Data logging started");
     } else {
         Serial.println("Unknown command");
     }
+}
+
+void downloadFile(String fileName) {
+    xSemaphoreTake(sdCardMutex, portMAX_DELAY);
+    File file = SD_MMC.open("/" + fileName, FILE_READ);
+    if (file) {
+        Serial.println("START");
+        while (file.available()) {
+            Serial.write(file.read());
+        }
+        Serial.println("END");
+        file.close();
+    } else {
+        Serial.println("Failed to open file: " + fileName);
+    }
+    xSemaphoreGive(sdCardMutex);
 }
 
 void printSensorValues() {
@@ -223,42 +228,5 @@ void printLocalTime() {
         Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
     } else {
         Serial.println("Failed to obtain time");
-    }
-}
-
-void listFiles() {
-    xSemaphoreTake(sdCardMutex, portMAX_DELAY);
-    File root = SD_MMC.open("/");
-    File file = root.openNextFile();
-
-    String fileList = "<html><body><h1>SD Card File List</h1><ul>";
-    while (file) {
-        fileList += "<li><a href=\"/file?name=";
-        fileList += file.name();
-        fileList += "\">";
-        fileList += file.name();
-        fileList += "</a></li>";
-        file = root.openNextFile();
-    }
-    fileList += "</ul></body></html>";
-
-    server.send(200, "text/html", fileList);
-    xSemaphoreGive(sdCardMutex);
-}
-
-void serveFile() {
-    if (server.hasArg("name")) {
-        String fileName = server.arg("name");
-        xSemaphoreTake(sdCardMutex, portMAX_DELAY);
-        File file = SD_MMC.open(fileName.c_str(), FILE_READ);
-        if (file) {
-            server.streamFile(file, "application/octet-stream");
-            file.close();
-        } else {
-            server.send(404, "text/plain", "File not found");
-        }
-        xSemaphoreGive(sdCardMutex);
-    } else {
-        server.send(400, "text/plain", "Bad Request");
     }
 }

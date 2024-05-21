@@ -16,13 +16,11 @@ const char* ssid = "Apocalypse";
 const char* password = "JS283ac$";
 
 // NTP server to request time from
-const char* ntpServer = "pool.ntp.org";
+// const char* ntpServer = "pool.ntp.org";
+const char* ntpServer = "time.google.com";
 // Time zone offset in seconds (for example, -5*3600 for EST)
 const long gmtOffset_sec = -5 * 3600; // Adjust this to your time zone
 const int daylightOffset_sec = 3600; // Daylight offset, adjust if needed
-
-// Create an instance of the WiFiDriver class
-WiFiDriver wifi;
 
 // Pin where the DS18B20 is connected
 const uint8_t DS18B20_PIN = 47; // Corrected pin for DS18B20
@@ -39,12 +37,16 @@ SemaphoreHandle_t sdCardMutex;
 // Flag to control data logging
 bool isLoggingEnabled = true;
 
+// Create an instance of the WiFiDriver class
+WiFiDriver wifi;
+
 // Function declarations
 void handleSerialCommand();
 void printSensorValues();
 void printLocalTime();
 void downloadFile(String fileName);  // Forward declaration
 void deleteFile(String fileName);  // Forward declaration
+void createDatalogWithHeaders();  // Function to create datalog with headers
 
 void setup() {
     // Start the Serial Monitor
@@ -89,20 +91,7 @@ void setup() {
     }
 
     // Create the CSV header if the file doesn't exist
-    xSemaphoreTake(sdCardMutex, portMAX_DELAY);
-    File file = SD_MMC.open("/datalog.csv", FILE_READ);
-    if (!file) {
-        file = SD_MMC.open("/datalog.csv", FILE_WRITE);
-        if (file) {
-            file.println("Timestamp,3.3V Rail (V),5V Rail (V),TDS Value (ppm),pH Value,Temperature (°C),DS18B20 Temperature (°C)");
-            file.close();
-        } else {
-            Serial.println("Failed to create datalog.csv");
-        }
-    } else {
-        file.close();
-    }
-    xSemaphoreGive(sdCardMutex);
+    createDatalogWithHeaders();
 }
 
 void loop() {
@@ -125,7 +114,10 @@ void handleSerialCommand() {
 
     if (command.startsWith("DOWNLOAD ")) {
         String fileName = command.substring(9);
+        isLoggingEnabled = false;  // Pause data logging
+        delay(100);  // Ensure any ongoing logging is completed
         downloadFile(fileName);
+        isLoggingEnabled = true;  // Resume data logging
     } else if (command.startsWith("DELETE ")) {
         String fileName = command.substring(7);
         isLoggingEnabled = false;  // Pause data logging
@@ -182,8 +174,23 @@ void deleteFile(String fileName) {
     xSemaphoreTake(sdCardMutex, portMAX_DELAY);
     if (SD_MMC.remove("/" + fileName)) {
         Serial.println("DELETE_SUCCESS");
+        // Recreate the file with headers
+        createDatalogWithHeaders();
     } else {
         Serial.println("DELETE_FAILED");
+    }
+    xSemaphoreGive(sdCardMutex);
+}
+
+void createDatalogWithHeaders() {
+    xSemaphoreTake(sdCardMutex, portMAX_DELAY);
+    File file = SD_MMC.open("/datalog.csv", FILE_WRITE);
+    if (file) {
+        file.println("Timestamp,3.3V Rail (V),5V Rail (V),TDS Value (ppm),pH Value,Temperature (°C),DS18B20 Temperature (°C)");
+        file.close();
+        Serial.println("Datalog file created with headers.");
+    } else {
+        Serial.println("Failed to create datalog file with headers.");
     }
     xSemaphoreGive(sdCardMutex);
 }
@@ -238,6 +245,9 @@ void printSensorValues() {
         Serial.println("Data logged to SD card");
     }
     xSemaphoreGive(sdCardMutex);
+
+    // Update sensor values in WiFiDriver
+    wifi.updateSensorValues(voltage3V3, voltage5V, tdsValue, phValue, temperature, ds18b20Temperature);
 }
 
 void printLocalTime() {

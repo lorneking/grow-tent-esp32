@@ -1,77 +1,99 @@
 import serial # type: ignore
 import time
-from datetime import datetime
 import os
+from datetime import datetime
 
-# Replace with the correct serial port for your ESP32-S3
-SERIAL_PORT = 'COM3'  # Use the correct port for your system, e.g., 'COM3' on Windows or '/dev/ttyUSB0' on Linux
+SERIAL_PORT = 'COM3'  # Update with your actual serial port
 BAUD_RATE = 115200
-FILE_NAME = 'datalog.csv'
+TIMEOUT = 10  # Increased timeout in seconds
 
 def download_file_from_esp32(delete_after_download=False):
-    # Generate a timestamped output filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"downloaded_{FILE_NAME.split('.')[0]}_{timestamp}.csv"
+    try:
+        with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+            time.sleep(2)  # Allow some time for the serial port to settle
 
-    # Ensure the "downloads" subfolder exists
-    output_folder = "downloads"
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+            print("Sending DOWNLOAD command...")
+            ser.write(b"DOWNLOAD datalog.csv\n")
+            start_signal = wait_for_signal(ser, "START")
 
-    output_path = os.path.join(output_folder, output_file)
+            if not start_signal:
+                print("Timeout waiting for START signal")
+                return
 
-    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    time.sleep(2)  # Wait for the serial connection to establish
+            file_name = generate_file_name()
+            print(f"Writing data to {file_name}")
+            
+            with open(file_name, 'wb') as file:
+                while True:
+                    line = ser.readline()
+                    if b"END" in line:
+                        break
+                    file.write(line)
 
-    ser.write(f"DOWNLOAD {FILE_NAME}\n".encode())
-    time.sleep(1)  # Give ESP32 time to process the command
+            print(f"File datalog.csv downloaded successfully as {file_name}")
 
-    with open(output_path, 'wb') as file:
-        while True:
-            line = ser.readline().strip()
-            if line == b"START":
-                break
-
-        while True:
-            line = ser.readline().strip()
-            if line == b"END":
-                break
-            file.write(line + b'\n')
-
-    ser.close()
-    print(f"File {FILE_NAME} downloaded successfully as {output_path}")
-
-    if delete_after_download:
-        delete_file_on_esp32()
+            if delete_after_download:
+                time.sleep(2)  # Ensure the port is ready for the next command
+                print("Sending DELETE command...")
+                ser.write(b"DELETE datalog.csv\n")
+                delete_signal = wait_for_signal(ser, "DELETE_SUCCESS")
+                
+                if not delete_signal:
+                    print("Failed to delete file datalog.csv on ESP32.")
+                else:
+                    print("File datalog.csv deleted successfully on ESP32.")
+    except Exception as e:
+        print(f"Error: {e}")
 
 def delete_file_on_esp32():
-    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    time.sleep(2)  # Wait for the serial connection to establish
+    try:
+        with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+            time.sleep(2)  # Allow some time for the serial port to settle
 
-    ser.write(f"DELETE {FILE_NAME}\n".encode())
-    time.sleep(1)  # Give ESP32 time to process the command
+            print("Sending DELETE command...")
+            ser.write(b"DELETE datalog.csv\n")
+            delete_signal = wait_for_signal(ser, "DELETE_SUCCESS")
+            
+            if not delete_signal:
+                print("Failed to delete file datalog.csv on ESP32.")
+            else:
+                print("File datalog.csv deleted successfully on ESP32.")
+    except Exception as e:
+        print(f"Error: {e}")
 
+def wait_for_signal(ser, signal, timeout=TIMEOUT):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if ser.in_waiting:
+            line = ser.readline().decode().strip()
+            print(f"Received line: {line}")  # Debugging output
+            if signal in line:
+                return True
+    return False
+
+def generate_file_name():
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    folder_path = os.path.join(os.getcwd(), "downloads")
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    return os.path.join(folder_path, f"downloaded_datalog_{timestamp}.csv")
+
+def main():
     while True:
-        line = ser.readline().strip()
-        if line:
-            print(line.decode())
-        if line == b"DELETE_SUCCESS":
-            print(f"File {FILE_NAME} deleted successfully on ESP32.")
+        action = input("What would you like to do? (download/delete/delete_after_download): ").strip().lower()
+        if action == "download":
+            download_file_from_esp32()
             break
-        elif line == b"DELETE_FAILED":
-            print(f"Failed to delete file {FILE_NAME} on ESP32.")
+        elif action == "delete":
+            delete_file_on_esp32()
             break
-
-    ser.close()
+        elif action == "delete_after_download":
+            download_file_from_esp32(delete_after_download=True)
+            break
 
 if __name__ == "__main__":
-    action_option = input("What would you like to do? (download/delete/delete_after_download): ").strip().lower()
-    
-    if action_option == 'download':
-        download_file_from_esp32(delete_after_download=False)
-    elif action_option == 'delete':
-        delete_file_on_esp32()
-    elif action_option == 'delete_after_download':
-        download_file_from_esp32(delete_after_download=True)
-    else:
-        print("Invalid option. Please choose 'download', 'delete', or 'delete_after_download'.")
+    main()

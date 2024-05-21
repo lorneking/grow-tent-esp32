@@ -44,6 +44,7 @@ void handleSerialCommand();
 void printSensorValues();
 void printLocalTime();
 void downloadFile(String fileName);  // Forward declaration
+void deleteFile(String fileName);  // Forward declaration
 
 void setup() {
     // Start the Serial Monitor
@@ -125,6 +126,12 @@ void handleSerialCommand() {
     if (command.startsWith("DOWNLOAD ")) {
         String fileName = command.substring(9);
         downloadFile(fileName);
+    } else if (command.startsWith("DELETE ")) {
+        String fileName = command.substring(7);
+        isLoggingEnabled = false;  // Pause data logging
+        delay(100);  // Ensure any ongoing logging is completed
+        deleteFile(fileName);
+        isLoggingEnabled = true;  // Resume data logging
     } else if (command == "READ") {
         printSensorValues();
     } else if (command.startsWith("LOG ")) {
@@ -166,6 +173,17 @@ void downloadFile(String fileName) {
         file.close();
     } else {
         Serial.println("Failed to open file: " + fileName);
+    }
+    xSemaphoreGive(sdCardMutex);
+}
+
+void deleteFile(String fileName) {
+    Serial.println("Attempting to delete file: " + fileName);
+    xSemaphoreTake(sdCardMutex, portMAX_DELAY);
+    if (SD_MMC.remove("/" + fileName)) {
+        Serial.println("DELETE_SUCCESS");
+    } else {
+        Serial.println("DELETE_FAILED");
     }
     xSemaphoreGive(sdCardMutex);
 }

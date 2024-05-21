@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grow Controller Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        p { font-size: 1.2em; }
+    </style>
+    <script>
+        function fetchData() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('status').innerText = "Error: " + data.error;
+                    } else {
+                        document.getElementById('voltage3V3').innerText = "3.3V Rail: " + data.voltage3V3 + " V";
+                        document.getElementById('voltage5V').innerText = "5V Rail: " + data.voltage5V + " V";
+                        document.getElementById('tdsValue').innerText = "TDS Value: " + data.tdsValue + " ppm";
+                        document.getElementById('phValue').innerText = "pH Value: " + data.phValue;
+                        document.getElementById('temperature').innerText = "Temperature: " + data.temperature + " °C";
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('status').innerText = "Error: " + error;
+                });
+        }
+
+        setInterval(fetchData, 2000);  // Fetch data every 2 seconds
+    </script>
+</head>
+<body onload="fetchData()">
+    <h1>Grow Controller Dashboard</h1>
+    <p id="status">Fetching data...</p>
+    <p id="voltage3V3"></p>
+    <p id="voltage5V"></p>
+    <p id="tdsValue"></p>
+    <p id="phValue"></p>
+    <p id="temperature"></p>
+</body>
+</html>

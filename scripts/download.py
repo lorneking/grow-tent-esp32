@@ -65,6 +65,13 @@ def delete_file_on_esp32():
     ser.close()
 
 if __name__ == "__main__":
-    delete_option = input("Do you want to delete the datalog file after downloading? (yes/no): ").strip().lower()
-    delete_after_download = delete_option == 'yes'
-    download_file_from_esp32(delete_after_download)
+    action_option = input("What would you like to do? (download/delete/delete_after_download): ").strip().lower()
+    
+    if action_option == 'download':
+        download_file_from_esp32(delete_after_download=False)
+    elif action_option == 'delete':
+        delete_file_on_esp32()
+    elif action_option == 'delete_after_download':
+        download_file_from_esp32(delete_after_download=True)
+    else:
+        print("Invalid option. Please choose 'download', 'delete', or 'delete_after_download'.")

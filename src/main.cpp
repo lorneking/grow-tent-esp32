@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <time.h>
 #include "sysvoltagemon.h"
 #include "tds.h"
 #include "ph.h"
@@ -10,6 +12,12 @@
 // Replace with your network credentials
 const char* ssid = "Apocalypse";
 const char* password = "JS283ac$";
+
+// NTP server to request time from
+const char* ntpServer = "pool.ntp.org";
+// Time zone offset in seconds (for example, -5*3600 for EST)
+const long gmtOffset_sec = 0; // Adjust this to your time zone
+const int daylightOffset_sec = 3600; // Daylight offset, adjust if needed
 
 // Create an instance of the WiFiDriver class
 WiFiDriver wifi;
@@ -31,6 +39,16 @@ void setup() {
     // Initialize the Wi-Fi driver and connect to Wi-Fi
     wifi.begin(ssid, password);
 
+    // Synchronize time with NTP
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    Serial.println("Waiting for NTP time sync...");
+    struct tm timeinfo;
+    while (!getLocalTime(&timeinfo)) {
+        Serial.print(".");
+        delay(1000);
+    }
+    Serial.println("\nTime synchronized!");
+
     // Initialize all other systems
     initSysVoltageMon();
     initTDS();
@@ -44,6 +62,19 @@ void setup() {
     if (!sdCard.begin()) {
         Serial.println("SD card initialization failed!");
         return;
+    }
+
+    // Create the CSV header if the file doesn't exist
+    File file = SD_MMC.open("/datalog.csv", FILE_READ);
+    if (!file) {
+        file = SD_MMC.open("/datalog.csv", FILE_WRITE);
+        if (file) {
+            file.println("Timestamp,3.3V Rail (V),5V Rail (V),TDS Value (ppm),pH Value,Temperature (°C),DS18B20 Temperature (°C)");
+            file.close();
+        }
+    }
+    else {
+        file.close();
     }
 }
 
@@ -64,6 +95,15 @@ void loop() {
 
     // Update the Wi-Fi driver with the latest sensor values
     wifi.updateSensorValues(voltage3V3, voltage5V, tdsValue, phValue, ds18b20Temperature);
+
+    // Get the current time
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        Serial.println("Failed to obtain time");
+        return;
+    }
+    char timeString[30];
+    strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
 
     // Print the readings in a tidy format
     Serial.print("3.3V Rail: ");
@@ -102,14 +142,12 @@ void loop() {
     Serial.print(ds18b20Temperature, 2);
     Serial.println(" °C");
 
-    // Log data to the SD card
-    String data = "3.3V Rail: " + String(voltage3V3, 3) + " V, " +
-                  "5V Rail: " + String(voltage5V, 3) + " V, " +
-                  "TDS Value: " + String(tdsValue, 0) + " ppm, " +
-                  "pH Value: " + String(phValue, 3) + ", " +
-                  "Temperature: " + String(temperature, 2) + " °C, " +
-                  "DS18B20 Temperature: " + String(ds18b20Temperature, 2) + " °C\n";
-    if (sdCard.writeFile("/datalog.txt", data.c_str())) {
+    // Log data to the SD card in CSV format
+    String data = String(timeString) + "," + String(voltage3V3, 3) + "," +
+                  String(voltage5V, 3) + "," + String(tdsValue, 0) + "," +
+                  String(phValue, 3) + "," + String(temperature, 2) + "," +
+                  String(ds18b20Temperature, 2) + "\n";
+    if (sdCard.writeFile("/datalog.csv", data.c_str())) {
         Serial.println("Data logged to SD card");
     }
 
